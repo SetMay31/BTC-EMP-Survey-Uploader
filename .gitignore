@@ -1,0 +1,14 @@
+# macOS Finder metadata
+.DS_Store
+
+# Local Claude Code working files (launch config has absolute paths)
+.claude/
+
+# Editor + OS caches
+*.swp
+*~
+.idea/
+.vscode/
+
+# Node (in case anyone adds tooling later)
+node_modules/

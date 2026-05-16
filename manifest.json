@@ -1,0 +1,19 @@
+{
+  "name": "Ecological Monitoring Program — Survey Data Uploader",
+  "short_name": "EMP Uploader",
+  "description": "Field data input for Chordates, Invertebrate, and Substrate surveys",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafaf7",
+  "theme_color": "#1a4d6d",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

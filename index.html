@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a4d6d" />
+  <title>Ecological Monitoring Program — Survey Data Uploader</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-row">
+      <!-- Auto-loads logo.svg → logo.png → icon.svg fallback. Drop the BTC logo file
+           into the project root as logo.svg (preferred) or logo.png; no code change needed. -->
+      <img class="brand-mark" src="logo.svg" alt="Black Turtle Conservation"
+           onerror="if(!this.dataset.t){this.dataset.t='1';this.src='logo.png'}else{this.onerror=null;this.src='icon.svg'}" />
+      <div class="brand-text">
+        <span class="brand-line-1">Ecological Monitoring Program</span>
+        <span class="brand-line-2">Survey Data Uploader</span>
+      </div>
+      <div class="topbar-status">
+        <span id="net-status" class="net-dot" title="Online status"></span>
+        <span id="queue-count" class="queue-pill" title="Pending sync">0</span>
+      </div>
+    </div>
+    <nav id="survey-tabs" class="tabs hidden">
+      <button class="tab" data-screen="info">Info</button>
+      <button class="tab" data-screen="chordates">Chordates</button>
+      <button class="tab" data-screen="invertebrate">Invertebrates</button>
+      <button class="tab" data-screen="substrate">Substrate</button>
+      <button class="tab" data-screen="review">Review</button>
+    </nav>
+  </header>
+
+  <main id="app"></main>
+
+  <!-- Setup screen template -->
+  <template id="tpl-setup">
+    <section class="screen">
+      <h2>New Survey</h2>
+      <p class="muted">Enter the shared metadata for this site visit. It will apply to all three surveys.</p>
+      <form id="setup-form" class="form-stack" autocomplete="off">
+        <div class="surveyor-mode-row">
+          <span class="surveyor-mode-label">Surveyor(s)</span>
+          <div class="mode-toggle" role="tablist" aria-label="Surveyor mode">
+            <button type="button" class="mode-btn active" data-surveyor-mode="single">One</button>
+            <button type="button" class="mode-btn" data-surveyor-mode="multiple">Multiple</button>
+          </div>
+        </div>
+        <div class="surveyor-single">
+          <label>Surveyor Name
+            <input name="surveyor_single" type="text" />
+          </label>
+        </div>
+        <div class="surveyor-multiple hidden">
+          <label>Chordates Surveyor
+            <input name="surveyor_chordates" type="text" />
+          </label>
+          <label>
+            <span class="label-with-action">
+              <span>Invertebrates Surveyor</span>
+              <button type="button" class="copy-prev" data-target="surveyor_invertebrate" data-source="surveyor_chordates">Copy Previous</button>
+            </span>
+            <input name="surveyor_invertebrate" type="text" />
+          </label>
+          <label>
+            <span class="label-with-action">
+              <span>Substrate Surveyor</span>
+              <button type="button" class="copy-prev" data-target="surveyor_substrate" data-source="surveyor_invertebrate">Copy Previous</button>
+            </span>
+            <input name="surveyor_substrate" type="text" />
+          </label>
+        </div>
+        <p class="muted small">Fill at least one. Each surveyor name is recorded against their survey's rows in the Sheet.</p>
+        <label>Survey Date
+          <input name="date" type="date" required />
+        </label>
+        <label>Dive Site
+          <input name="location" type="text" required autocomplete="off" />
+        </label>
+        <fieldset class="fixed-toggle">
+          <legend>Fixed Transect (Point A to Point B)</legend>
+          <label class="inline-radio"><input type="radio" name="fixed" value="yes" required /> Yes</label>
+          <label class="inline-radio"><input type="radio" name="fixed" value="no" /> No</label>
+        </fieldset>
+        <label id="depth-field" class="hidden">Fixed Line Depth
+          <select name="depth">
+            <option value="">— Choose —</option>
+            <option value="Shallow">Shallow</option>
+            <option value="Deep">Deep</option>
+          </select>
+        </label>
+        <button type="submit" class="primary">Start surveys</button>
+        <button type="button" id="resume-btn" class="ghost hidden">Resume saved draft</button>
+      </form>
+    </section>
+  </template>
+
+  <!-- Survey Info template — edit shared metadata mid-survey -->
+  <template id="tpl-info">
+    <section class="screen">
+      <h2>Survey Info</h2>
+      <p class="muted">Edit the shared metadata for this site visit. Changes apply to all three surveys and any future submissions. Sections already pushed to your Sheet keep their original values.</p>
+      <form id="info-form" class="form-stack" autocomplete="off">
+        <div class="surveyor-mode-row">
+          <span class="surveyor-mode-label">Surveyor(s)</span>
+          <div class="mode-toggle" role="tablist" aria-label="Surveyor mode">
+            <button type="button" class="mode-btn active" data-surveyor-mode="single">One</button>
+            <button type="button" class="mode-btn" data-surveyor-mode="multiple">Multiple</button>
+          </div>
+        </div>
+        <div class="surveyor-single">
+          <label>Surveyor Name
+            <input name="surveyor_single" type="text" />
+          </label>
+        </div>
+        <div class="surveyor-multiple hidden">
+          <label>Chordates Surveyor
+            <input name="surveyor_chordates" type="text" />
+          </label>
+          <label>
+            <span class="label-with-action">
+              <span>Invertebrates Surveyor</span>
+              <button type="button" class="copy-prev" data-target="surveyor_invertebrate" data-source="surveyor_chordates">Copy Previous</button>
+            </span>
+            <input name="surveyor_invertebrate" type="text" />
+          </label>
+          <label>
+            <span class="label-with-action">
+              <span>Substrate Surveyor</span>
+              <button type="button" class="copy-prev" data-target="surveyor_substrate" data-source="surveyor_invertebrate">Copy Previous</button>
+            </span>
+            <input name="surveyor_substrate" type="text" />
+          </label>
+        </div>
+        <p class="muted small">Fill at least one. Each surveyor name is recorded against their survey's rows in the Sheet.</p>
+        <label>Survey Date
+          <input name="date" type="date" required />
+        </label>
+        <label>Dive Site
+          <input name="location" type="text" required autocomplete="off" />
+        </label>
+        <fieldset class="fixed-toggle">
+          <legend>Fixed Transect (Point A to Point B)</legend>
+          <label class="inline-radio"><input type="radio" name="fixed" value="yes" /> Yes</label>
+          <label class="inline-radio"><input type="radio" name="fixed" value="no" /> No</label>
+        </fieldset>
+        <label id="info-depth-field">Fixed Line Depth
+          <select name="depth">
+            <option value="">— Choose —</option>
+            <option value="Shallow">Shallow</option>
+            <option value="Deep">Deep</option>
+          </select>
+        </label>
+      </form>
+      <p class="muted small info-saved" id="info-saved">Changes save automatically.</p>
+    </section>
+  </template>
+
+  <!-- Species survey template (used by chordates + invertebrate) -->
+  <template id="tpl-species">
+    <section class="screen">
+      <div class="screen-head">
+        <h2 id="species-title"></h2>
+        <div class="mode-toggle" role="tablist" aria-label="Input mode">
+          <button class="mode-btn active" data-mode="tally">Tally</button>
+          <button class="mode-btn" data-mode="number">Number</button>
+        </div>
+      </div>
+      <div class="section-tabs" id="section-tabs"></div>
+      <div id="species-body" class="species-body"></div>
+    </section>
+  </template>
+
+  <!-- Substrate survey template -->
+  <template id="tpl-substrate">
+    <section class="screen substrate-screen">
+      <div class="screen-head">
+        <h2>Substrate Survey</h2>
+        <div class="progress-pill" id="substrate-progress">0 / 160</div>
+      </div>
+      <div class="section-tabs" id="substrate-section-tabs"></div>
+
+      <div class="stepper">
+        <div class="stepper-prompt">
+          <div class="prompt-label">Section <span id="step-section"></span> · Point <span id="step-point"></span> of 40</div>
+          <div class="prompt-position"><span id="step-position"></span> m</div>
+          <div class="stepper-current" id="step-current"></div>
+        </div>
+
+        <div class="substrate-buttons" id="substrate-buttons"></div>
+
+        <div class="stepper-controls">
+          <button id="step-back" class="ghost">‹ Back</button>
+          <button id="step-jump" class="ghost">Jump…</button>
+          <button id="step-next" class="ghost">Next ›</button>
+        </div>
+      </div>
+
+      <div class="grid-review">
+        <h3>Section recap</h3>
+        <div id="grid-review-body" class="grid-cells"></div>
+      </div>
+    </section>
+  </template>
+
+  <!-- Review/submit template -->
+  <template id="tpl-review">
+    <section class="screen">
+      <h2>Review &amp; Submit</h2>
+      <div id="review-summary" class="review-summary"></div>
+
+      <div class="review-actions all-actions">
+        <button id="submit-all" class="primary submit-all-full">SUBMIT ALL COMPLETE DATASETS</button>
+        <div class="review-secondary-row">
+          <button id="download-all-csv" class="ghost">Download CSV</button>
+          <button id="export-json" class="ghost">Export JSON</button>
+          <button id="discard-all" class="danger">Reset All Data</button>
+        </div>
+      </div>
+
+      <div id="submit-result" class="submit-result"></div>
+    </section>
+  </template>
+
+  <!-- HC details modal -->
+  <template id="tpl-hc-modal">
+    <div class="modal-backdrop">
+      <div class="modal hc-modal">
+        <h3>Hard Coral details</h3>
+        <div class="hc-field">
+          <div class="hc-label">Growth Form</div>
+          <div class="hc-buttons" data-group="growth"></div>
+        </div>
+        <div class="hc-field">
+          <div class="hc-label">Health Code</div>
+          <div class="hc-buttons" data-group="health"></div>
+        </div>
+        <div class="hc-field">
+          <div class="hc-label">Genus Code</div>
+          <input id="hc-genus" type="text" maxlength="15" autocapitalize="characters" inputmode="text" placeholder="e.g. ACRO" />
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-action="cancel">Cancel</button>
+          <button class="primary" data-action="confirm">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Other (OTH) details modal -->
+  <template id="tpl-oth-modal">
+    <div class="modal-backdrop">
+      <div class="modal">
+        <h3>Other — please specify</h3>
+        <input id="oth-text" type="text" maxlength="80" placeholder="Description" />
+        <div class="modal-actions">
+          <button class="ghost" data-action="cancel">Cancel</button>
+          <button class="primary" data-action="confirm">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Jump-to-point modal -->
+  <template id="tpl-jump-modal">
+    <div class="modal-backdrop">
+      <div class="modal">
+        <h3>Jump to point</h3>
+        <label>Section
+          <select id="jump-section"></select>
+        </label>
+        <label>Point #
+          <select id="jump-point"></select>
+        </label>
+        <div class="modal-actions">
+          <button class="ghost" data-action="cancel">Cancel</button>
+          <button class="primary" data-action="confirm">Go</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Pending sync queue modal -->
+  <template id="tpl-queue-modal">
+    <div class="modal-backdrop">
+      <div class="modal queue-modal">
+        <h3>Pending Sync Queue</h3>
+        <p class="muted small" id="queue-empty-hint">Nothing pending.</p>
+        <div class="queue-list" id="queue-list"></div>
+        <p class="muted small" id="queue-sync-hint"></p>
+        <div class="modal-actions">
+          <button class="ghost" data-action="close">Close</button>
+          <button class="primary" data-action="retry" id="queue-retry-btn">Retry now</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Settings (Sheets sync URL) drawer -->
+  <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
+  <template id="tpl-settings">
+    <div class="modal-backdrop">
+      <div class="modal">
+        <h3>Settings</h3>
+        <label>Google Apps Script Web App URL
+          <input id="sync-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+          <small class="muted">Leave blank to disable Sheets sync — exports still work.</small>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="auto-sync" /> Auto-sync when online
+        </label>
+        <div class="modal-actions">
+          <button class="ghost" data-action="cancel">Close</button>
+          <button class="primary" data-action="save">Save</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
