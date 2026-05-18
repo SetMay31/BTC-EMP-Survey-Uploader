@@ -446,6 +446,43 @@ button.danger {
   font-weight: 600;
 }
 
+/* Per-section Notes box (free-text, sits above Clear & Start Over) */
+.section-notes-bar {
+  margin: 18px 0 0;
+}
+.section-notes-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+.section-notes-field > span {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+.section-notes-input {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--ink);
+  resize: vertical;
+}
+.section-notes-input:focus {
+  outline: 2px solid var(--accent-2);
+  outline-offset: -1px;
+}
+
 /* Clear & Start Over (bottom of each section in every survey) */
 .clear-section-bar {
   margin: 18px 0 0;

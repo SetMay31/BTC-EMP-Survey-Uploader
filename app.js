@@ -202,9 +202,9 @@ function newDraft() {
 
 function blankSectionMeta() {
   return {
-    chordates: SECTIONS.map(() => ({ startTime: "", startDepth: "" })),
-    invertebrate: SECTIONS.map(() => ({ startTime: "", startDepth: "" })),
-    substrate: SECTIONS.map(() => ({ startTime: "", startDepth: "" })),
+    chordates: SECTIONS.map(() => ({ startTime: "", startDepth: "", notes: "" })),
+    invertebrate: SECTIONS.map(() => ({ startTime: "", startDepth: "", notes: "" })),
+    substrate: SECTIONS.map(() => ({ startTime: "", startDepth: "", notes: "" })),
   };
 }
 
@@ -659,6 +659,33 @@ function renderSetup() {
   });
 }
 
+// Builds the free-text Notes box that sits at the bottom of each section.
+// Notes auto-persist per (survey, section) into state.draft.sectionMeta and
+// are included as a column in the Sheet rows on submit.
+function renderSectionNotesBar(surveyKey, sectionIdx) {
+  const meta = state.draft.sectionMeta[surveyKey][sectionIdx];
+  const bar = document.createElement("div");
+  bar.className = "section-notes-bar";
+
+  const label = document.createElement("label");
+  label.className = "section-notes-field";
+  const labelText = document.createElement("span");
+  labelText.textContent = `Notes — ${SECTIONS[sectionIdx]}`;
+  const textarea = document.createElement("textarea");
+  textarea.className = "section-notes-input";
+  textarea.maxLength = 2000;
+  textarea.rows = 4;
+  textarea.placeholder = "Anything noteworthy about this section — sightings, conditions, gear issues, …";
+  textarea.value = meta.notes || "";
+  textarea.addEventListener("input", () => {
+    state.draft.sectionMeta[surveyKey][sectionIdx].notes = textarea.value;
+    saveDraft();
+  });
+  label.append(labelText, textarea);
+  bar.appendChild(label);
+  return bar;
+}
+
 /* =========================================================================
  *  SURVEY INFO (mid-survey metadata editor)
  *  Renders an auto-saving form pre-filled from state.draft.metadata. Lets the
@@ -963,6 +990,10 @@ function renderSpecies(key, list, title) {
     body.appendChild(card);
   });
 
+  // Per-section Notes box (free text) sits between the species list and the
+  // destructive "Clear & Start Over" button.
+  body.appendChild(renderSectionNotesBar(key, secIdx));
+
   // "Clear & Start Over" — scoped to the current section of the current survey.
   // Confirm before wiping; resets all species counts, the section-complete flag,
   // and the section-submitted flag (note: it does NOT delete the row already in
@@ -978,7 +1009,7 @@ function renderSpecies(key, list, title) {
     flattenSpecies(list).forEach((sp) => { state.draft[key][sp.name][secIdx] = null; });
     state.draft.sectionComplete[key][secIdx] = false;
     state.draft.submitted[key][secIdx] = false;
-    state.draft.sectionMeta[key][secIdx] = { startTime: "", startDepth: "" };
+    state.draft.sectionMeta[key][secIdx] = { startTime: "", startDepth: "", notes: "" };
     saveDraft();
     toast(`${SECTIONS[secIdx]} cleared.`);
     renderSpecies(key, list, title);
@@ -1152,6 +1183,9 @@ function renderSubstrate() {
   // Grid review
   renderGridReview(node.querySelector("#grid-review-body"));
 
+  // Per-section Notes box for substrate, just above the destructive Clear button.
+  node.appendChild(renderSectionNotesBar("substrate", section));
+
   // "Clear & Start Over" for the current substrate section
   const clearBar = document.createElement("div");
   clearBar.className = "clear-section-bar";
@@ -1163,7 +1197,7 @@ function renderSubstrate() {
     if (!ok) return;
     state.draft.substrate[section] = Array(POINTS_PER_SECTION).fill(null);
     state.draft.submitted.substrate[section] = false;
-    state.draft.sectionMeta.substrate[section] = { startTime: "", startDepth: "" };
+    state.draft.sectionMeta.substrate[section] = { startTime: "", startDepth: "", notes: "" };
     state.substrateCursor.point = 0;
     saveDraft();
     toast(`${SECTIONS[section]} cleared.`);
@@ -1804,7 +1838,11 @@ function baseMeta(draft, surveyKey) {
 
 function sectionMetaFor(draft, key, sectionIdx) {
   const sm = (draft.sectionMeta && draft.sectionMeta[key] && draft.sectionMeta[key][sectionIdx]) || {};
-  return { startTime: sm.startTime || "", startDepth: sm.startDepth || "" };
+  return {
+    startTime: sm.startTime || "",
+    startDepth: sm.startDepth || "",
+    notes: sm.notes || "",
+  };
 }
 
 function speciesRow(draft, list, key, sectionIdx) {
@@ -1858,7 +1896,7 @@ function buildAllPayload(draft) {
 // Schema describes tab layout (merged category band + column row).
 // All three surveys are long-format: meta + section, then the data columns.
 function buildSchema() {
-  const meta = ["surveyor", "date", "location", "fixedTransect", "depth", "surveyId", "submittedAt", "section", "startTime", "startDepth"];
+  const meta = ["surveyor", "date", "location", "fixedTransect", "depth", "surveyId", "submittedAt", "section", "startTime", "startDepth", "notes"];
 
   function speciesSchema(list) {
     const groups = list.map((grp) => {
