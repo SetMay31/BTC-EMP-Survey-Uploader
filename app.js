@@ -29,7 +29,7 @@ const CHORDATES = [
     category: "Butterfly Fish",
     species: ["Copper Banded", "8 Banded", "Lined", "Longfin Bannerfish", "Wiebel's"],
   },
-  { category: "Cartilaginous", species: ["Shark/Ray"] },
+  { category: "Cartilaginous Fish", species: ["Shark", "Ray"] },
   { category: "Grouper", species: ["Large (>30cm)", "Small (<30cm)"] },
   { category: null, species: ["Moray Eel"] },
   { category: "Parrotfish", species: ["Large (>20cm)", "Small (<20cm)"] },
@@ -108,6 +108,21 @@ const HC_HEALTH = [
 ];
 
 const POINTS_PER_SECTION = 40; // 0.5m spacing × 20m
+
+// "Location Within" predefined options — a refinement under the chosen dive
+// site (which part of the site this survey covers). "Other" triggers a free-
+// text input that gets folded into the stored string as "Other: <text>".
+const LOCATION_WITHIN_OPTIONS = [
+  "Main Site",
+  "Artificial Reef",
+  "Pinnacle",
+  "Reef",
+  "North Wall",
+  "East Wall",
+  "South Wall",
+  "West Wall",
+  "Sand Patch",
+];
 
 // Seeded dive sites — the surveyor can append device-local custom sites too.
 const DEFAULT_DIVE_SITES = [
@@ -264,6 +279,30 @@ function loadDraft() {
       };
     }
     if (!d.sectionMeta) d.sectionMeta = blankSectionMeta();
+    // One-off: split the old "Shark/Ray" combined entry into the new "Shark"
+    // and "Ray" species. Copy its values into both so historic counts aren't
+    // lost — the surveyor can refine per-species going forward.
+    if (d.chordates && d.chordates["Shark/Ray"]) {
+      d.chordates["Shark"] = d.chordates["Shark"] || d.chordates["Shark/Ray"].slice();
+      d.chordates["Ray"] = d.chordates["Ray"] || d.chordates["Shark/Ray"].slice();
+      delete d.chordates["Shark/Ray"];
+    }
+    // Ensure every species in the current schema has an array on the draft —
+    // schemas change (additions / renames) and we don't want runtime undefined
+    // errors when rendering an older draft against a newer schema.
+    [["chordates", CHORDATES], ["invertebrate", INVERTEBRATES]].forEach(([key, list]) => {
+      if (!d[key]) d[key] = {};
+      flattenSpecies(list).forEach((sp) => {
+        if (!d[key][sp.name]) d[key][sp.name] = SECTIONS.map(() => null);
+      });
+    });
+    // Ensure sectionMeta entries have notes (older drafts may not).
+    ["chordates", "invertebrate", "substrate"].forEach((k) => {
+      if (!d.sectionMeta[k]) d.sectionMeta[k] = SECTIONS.map(() => ({ startTime: "", startDepth: "", notes: "" }));
+      d.sectionMeta[k].forEach((sm) => {
+        if (typeof sm.notes !== "string") sm.notes = "";
+      });
+    });
     // Migrate single `surveyor` field → per-survey surveyors map. Old single
     // value is copied to all three so behaviour stays identical until edited.
     if (d.metadata && !d.metadata.surveyors) {
@@ -503,6 +542,67 @@ function attachDiveSitePicker(input) {
   // detached document listener becomes a no-op.
 }
 
+// Wires the "Location Within" select + companion "Other" text input. Populates
+// the dropdown options, restores the stored value, shows/hides the Other text
+// box, and exposes read/write helpers so the Setup submit and Info auto-save
+// can stay simple.
+//
+// Stored format:
+//   - One of the predefined values:  "Main Site", "Pinnacle", …
+//   - For Other:                     "Other: <free text>"  (or just "Other")
+function attachLocationWithinPicker(scope) {
+  const select = scope.querySelector('[name="locationWithin"]');
+  const otherField = scope.querySelector(".location-within-other");
+  const otherInput = scope.querySelector('[name="locationWithinOther"]');
+  if (!select) return null;
+
+  // Populate dropdown — preserve "— Choose —" placeholder, append predefined
+  // values, then append "Other: Please Specify" at the bottom.
+  LOCATION_WITHIN_OPTIONS.forEach((opt) => {
+    const o = document.createElement("option");
+    o.value = opt;
+    o.textContent = opt;
+    select.appendChild(o);
+  });
+  const otherOpt = document.createElement("option");
+  otherOpt.value = "Other";
+  otherOpt.textContent = "Other: Please Specify";
+  select.appendChild(otherOpt);
+
+  function toggleOther() {
+    const isOther = select.value === "Other";
+    otherField.classList.toggle("hidden", !isOther);
+  }
+  select.addEventListener("change", toggleOther);
+
+  function setValueFromStored(stored) {
+    if (!stored) { select.value = ""; otherInput.value = ""; toggleOther(); return; }
+    if (stored.startsWith("Other:")) {
+      select.value = "Other";
+      otherInput.value = stored.replace(/^Other:\s*/, "");
+    } else if (stored === "Other") {
+      select.value = "Other";
+      otherInput.value = "";
+    } else if (LOCATION_WITHIN_OPTIONS.includes(stored)) {
+      select.value = stored;
+      otherInput.value = "";
+    } else {
+      // Custom legacy value — treat as Other with that text
+      select.value = "Other";
+      otherInput.value = stored;
+    }
+    toggleOther();
+  }
+
+  function readValue() {
+    if (select.value !== "Other") return select.value || "";
+    const free = (otherInput.value || "").trim();
+    return free ? `Other: ${free}` : "Other";
+  }
+
+  return { setValueFromStored, readValue, select, otherInput };
+}
+
 /* =========================================================================
  *  SETUP SCREEN
  * ========================================================================= */
@@ -612,6 +712,8 @@ function renderSetup() {
   if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
 
   attachDiveSitePicker(form.querySelector('[name="location"]'));
+  const locWithin = attachLocationWithinPicker(form);
+  if (locWithin && existing) locWithin.setValueFromStored(existing.metadata?.locationWithin || "");
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -635,6 +737,7 @@ function renderSetup() {
       surveyors,
       date: fd.get("date").toString(),
       location: (fd.get("location") || "").toString().trim(),
+      locationWithin: locWithin ? locWithin.readValue() : "",
       depth: depth,
       fixedTransect: fixed,
     };
@@ -732,6 +835,9 @@ function renderInfo() {
     m.surveyors?.chordates || m.surveyors?.invertebrate || m.surveyors?.substrate || "";
   form.querySelector('[name="date"]').value = m.date || "";
   form.querySelector('[name="location"]').value = m.location || "";
+  // Location Within picker + Other text input
+  const locWithin = attachLocationWithinPicker(form);
+  if (locWithin) locWithin.setValueFromStored(m.locationWithin || "");
   if (m.fixedTransect) {
     const radio = form.querySelector(`[name="fixed"][value="${m.fixedTransect}"]`);
     if (radio) radio.checked = true;
@@ -785,6 +891,7 @@ function renderInfo() {
     state.draft.metadata.surveyorMode = mode;
     state.draft.metadata.date = (fd.get("date") || "").toString();
     state.draft.metadata.location = (fd.get("location") || "").toString().trim();
+    state.draft.metadata.locationWithin = locWithin ? locWithin.readValue() : "";
     state.draft.metadata.fixedTransect = fixed;
     state.draft.metadata.depth = fixed === "no" ? "Random" : (fd.get("depth") || "").toString();
     saveDraft();
@@ -825,6 +932,11 @@ function renderInfo() {
     if (el) el.addEventListener("input", persist);
   });
   form.querySelector('[name="date"]').addEventListener("change", persist);
+  // Location Within select + Other free text both persist on change/input
+  if (locWithin) {
+    locWithin.select.addEventListener("change", persist);
+    locWithin.otherInput.addEventListener("input", persist);
+  }
   form.querySelector('[name="location"]').addEventListener("input", persist);
   depthSelect.addEventListener("change", persist);
 
@@ -1631,6 +1743,7 @@ function renderReview() {
     ["Substrate Surveyor", sv.substrate],
     ["Date", meta.date],
     ["Dive Site", meta.location],
+    ["Location Within", meta.locationWithin],
     ["Fixed Transect", meta.fixedTransect ? capitalize(meta.fixedTransect) : "—"],
     ["Depth", meta.depth],
   ].forEach(([k, v]) => {
@@ -1829,6 +1942,7 @@ function baseMeta(draft, surveyKey) {
     surveyor,
     date: m.date,
     location: m.location,
+    locationWithin: m.locationWithin || "",
     fixedTransect: m.fixedTransect,
     depth: m.depth,
     surveyId: draft.id,
@@ -1896,7 +2010,7 @@ function buildAllPayload(draft) {
 // Schema describes tab layout (merged category band + column row).
 // All three surveys are long-format: meta + section, then the data columns.
 function buildSchema() {
-  const meta = ["surveyor", "date", "location", "fixedTransect", "depth", "surveyId", "submittedAt", "section", "startTime", "startDepth", "notes"];
+  const meta = ["surveyor", "date", "location", "locationWithin", "fixedTransect", "depth", "surveyId", "submittedAt", "section", "startTime", "startDepth", "notes"];
 
   function speciesSchema(list) {
     const groups = list.map((grp) => {

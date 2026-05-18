@@ -156,11 +156,11 @@ function setupAllTabs() {
 
 // Mirror of the schema the app sends. Keep in sync with app.js buildSchema().
 const EMBEDDED_SCHEMA = (function () {
-  var META = ["surveyor", "date", "location", "fixedTransect", "depth", "surveyId", "submittedAt", "section", "startTime", "startDepth", "notes"];
+  var META = ["surveyor", "date", "location", "locationWithin", "fixedTransect", "depth", "surveyId", "submittedAt", "section", "startTime", "startDepth", "notes"];
 
   var CHORDATES = [
     { category: "Butterfly Fish", species: ["Copper Banded", "8 Banded", "Lined", "Longfin Bannerfish", "Wiebel's"] },
-    { category: "Cartilaginous", species: ["Shark/Ray"] },
+    { category: "Cartilaginous Fish", species: ["Shark", "Ray"] },
     { category: "Grouper", species: ["Large (>30cm)", "Small (<30cm)"] },
     { category: "", species: ["Moray Eel"] },
     { category: "Parrotfish", species: ["Large (>20cm)", "Small (<20cm)"] },
