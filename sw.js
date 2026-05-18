@@ -2,13 +2,14 @@
 // Caches the app shell so it works fully offline.
 // Bump CACHE_VERSION whenever app files change so clients pick up updates.
 
-const CACHE_VERSION = "ems-v36";
+const CACHE_VERSION = "ems-v37";
 const SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.json",
+  "./logo.png",
   "./icon.svg",
 ];
 
