@@ -260,7 +260,17 @@
         </div>
         <div class="hc-field">
           <div class="hc-label">Genus Code</div>
-          <input id="hc-genus" type="text" maxlength="15" autocapitalize="characters" inputmode="text" placeholder="e.g. ACRO" />
+          <div class="hc-genus-row">
+            <select id="hc-genus-tier">
+              <option value="">— Tax tier —</option>
+              <option value="Tax I">Tax I</option>
+              <option value="Tax II">Tax II</option>
+              <option value="Tax III">Tax III</option>
+            </select>
+            <select id="hc-genus" disabled>
+              <option value="">— Genus —</option>
+            </select>
+          </div>
         </div>
         <div class="modal-actions">
           <button class="ghost" data-action="cancel">Cancel</button>

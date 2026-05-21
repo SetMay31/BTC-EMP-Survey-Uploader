@@ -99,6 +99,24 @@ const HC_GROWTH = [
   ["U", "Unknown"],
 ];
 
+// Coral genus codes grouped by Tax tier. The HC details modal narrows the
+// genus picker by tier so the surveyor doesn't have to scroll one giant
+// alphabetical list. Codes are uppercase by convention.
+const HC_GENUS_TIERS = {
+  "Tax I":   ["ACRO", "PORI", "DUNC", "DIPL", "LOBO", "GONIO", "HYDN", "PAVO", "PECT", "MERU", "PACH", "GARD", "GALA", "MONT", "STYL", "FIMB", "PLER"],
+  "Tax II":  ["ASTR", "TURB", "CAUL", "DIPS", "PLES", "CYPH", "ECHINOPO", "OXYP", "FUNG", "DANA", "PLEU", "CTEN", "HERP", "POLY", "CYCL", "LITH", "PODA", "SAND"],
+  "Tax III": ["ACAN", "ECHINOPH", "PSAM", "COSC", "LEPTA", "PSEU", "LEPTOS", "FAVI", "GONIA", "PARA", "PLAT", "LEPTOR", "TUBA", "CLAD"],
+};
+
+// Given a genus code, return its tier ("Tax I" / "Tax II" / "Tax III") or
+// null if unknown. Used to pre-select the tier dropdown when editing a point.
+function findGenusTier(genus) {
+  for (const tier of Object.keys(HC_GENUS_TIERS)) {
+    if (HC_GENUS_TIERS[tier].includes(genus)) return tier;
+  }
+  return null;
+}
+
 const HC_HEALTH = [
   ["H", "Healthy"],
   ["PBL", "Partially Bleached"],
@@ -1455,12 +1473,25 @@ function openHCModal(onClose) {
     healthWrap.appendChild(b);
   });
 
+  // Two dependent dropdowns: Tax tier narrows the genus picker so the
+  // surveyor doesn't have to scroll a single ~50-entry list. Genus dropdown
+  // stays disabled until a tier is chosen.
+  const tier = node.querySelector("#hc-genus-tier");
   const genus = node.querySelector("#hc-genus");
-  genus.addEventListener("input", () => {
-    // Caps + alphabetic only
-    genus.value = genus.value.toUpperCase().replace(/[^A-Z]/g, "");
-  });
-  setTimeout(() => genus.focus(), 50);
+  function fillGenusForTier(tierName) {
+    // Reset to just the placeholder, then add the tier's codes alphabetically.
+    genus.innerHTML = '<option value="">— Genus —</option>';
+    if (!tierName || !HC_GENUS_TIERS[tierName]) { genus.disabled = true; return; }
+    const codes = [...HC_GENUS_TIERS[tierName]].sort();
+    codes.forEach((code) => {
+      const opt = document.createElement("option");
+      opt.value = code;
+      opt.textContent = code;
+      genus.appendChild(opt);
+    });
+    genus.disabled = false;
+  }
+  tier.addEventListener("change", () => fillGenusForTier(tier.value));
 
   node.querySelector('[data-action="cancel"]').addEventListener("click", () => {
     closeModal(node); onClose(null);
@@ -1472,7 +1503,7 @@ function openHCModal(onClose) {
     }
     // Genus is optional — fall back to UNDEF when left blank so the Sheet
     // cell still carries a valid token (HC B PBL UNDEF) rather than a gap.
-    const genusValue = genus.value.trim() || "UNDEF";
+    const genusValue = (genus.value || "").trim() || "UNDEF";
     closeModal(node);
     onClose({ growth, health, genus: genusValue });
   });
