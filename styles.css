@@ -872,8 +872,11 @@ button.danger {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  width: 100%;
 }
 .hc-genus-row select {
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   font-size: 0.95rem;
 }
