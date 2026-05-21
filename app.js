@@ -1479,9 +1479,15 @@ function openHCModal(onClose) {
   const tier = node.querySelector("#hc-genus-tier");
   const genus = node.querySelector("#hc-genus");
   function fillGenusForTier(tierName) {
-    // Reset to just the placeholder, then add the tier's codes alphabetically.
+    if (!tierName || !HC_GENUS_TIERS[tierName]) {
+      // Still no tier — leave disabled with a "do this first" hint.
+      genus.innerHTML = '<option value="">← Pick tier first</option>';
+      genus.disabled = true;
+      return;
+    }
+    // Tier picked — swap placeholder to a friendlier "choose" prompt and
+    // populate alphabetically.
     genus.innerHTML = '<option value="">— Genus —</option>';
-    if (!tierName || !HC_GENUS_TIERS[tierName]) { genus.disabled = true; return; }
     const codes = [...HC_GENUS_TIERS[tierName]].sort();
     codes.forEach((code) => {
       const opt = document.createElement("option");
