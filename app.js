@@ -1482,13 +1482,23 @@ function openOTHModal(onClose) {
   const node = renderModal("tpl-oth-modal");
   const inp = node.querySelector("#oth-text");
   setTimeout(() => inp.focus(), 50);
+  // Force uppercase as the surveyor types — short codes like "GC", "TN",
+  // "AN" stay consistent across rows regardless of keyboard / mobile auto-cap.
+  inp.addEventListener("input", () => {
+    const pos = inp.selectionStart;
+    const upper = inp.value.toUpperCase();
+    if (upper !== inp.value) {
+      inp.value = upper;
+      try { inp.setSelectionRange(pos, pos); } catch (_) {}
+    }
+  });
   node.querySelector('[data-action="cancel"]').addEventListener("click", () => {
     closeModal(node); onClose(null);
   });
   node.querySelector('[data-action="confirm"]').addEventListener("click", () => {
     if (!inp.value.trim()) { toast("Describe what was at this point."); return; }
     closeModal(node);
-    onClose(inp.value.trim());
+    onClose(inp.value.trim().toUpperCase());
   });
 }
 
