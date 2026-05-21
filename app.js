@@ -103,7 +103,7 @@ const HC_GROWTH = [
 // genus picker by tier so the surveyor doesn't have to scroll one giant
 // alphabetical list. Codes are uppercase by convention.
 const HC_GENUS_TIERS = {
-  "Tax I":   ["ACRO", "PORI", "DUNC", "DIPL", "LOBO", "GONIO", "HYDN", "PAVO", "PECT", "MERU", "PACH", "GARD", "GALA", "MONT", "STYL", "FIMB", "PLER"],
+  "Tax I":   ["ACRO", "POCI", "DUNC", "DIPL", "LOBO", "GONIO", "HYDN", "PAVO", "PECT", "MERU", "PACH", "GARD", "GALA", "PORI", "MONT", "STYL", "FIMB", "PLER"],
   "Tax II":  ["ASTR", "TURB", "CAUL", "DIPS", "PLES", "CYPH", "ECHINOPO", "OXYP", "FUNG", "DANA", "PLEU", "CTEN", "HERP", "POLY", "CYCL", "LITH", "PODA", "SAND"],
   "Tax III": ["ACAN", "ECHINOPH", "PSAM", "COSC", "LEPTA", "PSEU", "LEPTOS", "FAVI", "GONIA", "PARA", "PLAT", "LEPTOR", "TUBA", "CLAD"],
 };
