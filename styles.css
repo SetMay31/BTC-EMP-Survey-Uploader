@@ -175,6 +175,13 @@ h3 {
 /* Forms */
 .form-stack { display: flex; flex-direction: column; gap: 14px; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; font-weight: 500; }
+/* Two-column row inside .form-stack — used for Date + Water Temperature pairing */
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.form-row-2 > label { margin: 0; }
 /* Visually present the fieldset/legend the same way a stack of labels reads:
    no border or padding, legend styled like a regular field label. Keeps
    semantic grouping intact for screen readers. */

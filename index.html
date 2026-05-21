@@ -8,13 +8,13 @@
   <!-- Bump APP_VERSION here AND sw.js CACHE_VERSION on every release so
        browsers and service workers reliably fetch the new shipped files
        (the query string forces a fresh download, no stale cache). -->
-  <link rel="manifest" href="manifest.json?v=45" />
+  <link rel="manifest" href="manifest.json?v=46" />
   <link rel="icon" href="app-icon.png" type="image/png" />
   <link rel="apple-touch-icon" href="app-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="styles.css?v=45" />
+  <link rel="stylesheet" href="styles.css?v=46" />
 </head>
 <body>
   <header class="topbar">
@@ -81,9 +81,14 @@
           </label>
         </div>
         <p class="muted small">Fill at least one. Each surveyor name is recorded against their survey's rows in the Sheet.</p>
-        <label>Survey Date
-          <input name="date" type="date" required />
-        </label>
+        <div class="form-row-2">
+          <label>Survey Date
+            <input name="date" type="date" required />
+          </label>
+          <label>Water Temperature (°C)
+            <input name="waterTemp" type="number" step="0.1" min="0" inputmode="decimal" placeholder="e.g. 28.5" />
+          </label>
+        </div>
         <label>Dive Site
           <input name="location" type="text" required autocomplete="off" />
         </label>
@@ -151,9 +156,14 @@
           </label>
         </div>
         <p class="muted small">Fill at least one. Each surveyor name is recorded against their survey's rows in the Sheet.</p>
-        <label>Survey Date
-          <input name="date" type="date" required />
-        </label>
+        <div class="form-row-2">
+          <label>Survey Date
+            <input name="date" type="date" required />
+          </label>
+          <label>Water Temperature (°C)
+            <input name="waterTemp" type="number" step="0.1" min="0" inputmode="decimal" placeholder="e.g. 28.5" />
+          </label>
+        </div>
         <label>Dive Site
           <input name="location" type="text" required autocomplete="off" />
         </label>
@@ -354,6 +364,6 @@
     </div>
   </template>
 
-  <script src="app.js?v=45" defer></script>
+  <script src="app.js?v=46" defer></script>
 </body>
 </html>

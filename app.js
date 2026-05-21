@@ -714,6 +714,7 @@ function renderSetup() {
     if (m.date) form.querySelector('[name="date"]').value = m.date;
     if (m.location) form.querySelector('[name="location"]').value = m.location;
     if (m.depth) form.querySelector('[name="depth"]').value = m.depth;
+    if (m.waterTemp) form.querySelector('[name="waterTemp"]').value = m.waterTemp;
     // Pre-fill the Fixed Transect radio + depth visibility
     if (m.fixedTransect) {
       const r = form.querySelector(`[name="fixed"][value="${m.fixedTransect}"]`);
@@ -730,6 +731,7 @@ function renderSetup() {
   if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
 
   attachDiveSitePicker(form.querySelector('[name="location"]'));
+  attachOneDecimalBlur(form.querySelector('[name="waterTemp"]'));
   const locWithin = attachLocationWithinPicker(form);
   if (locWithin && existing) locWithin.setValueFromStored(existing.metadata?.locationWithin || "");
 
@@ -758,6 +760,7 @@ function renderSetup() {
       locationWithin: locWithin ? locWithin.readValue() : "",
       depth: depth,
       fixedTransect: fixed,
+      waterTemp: formatOneDecimal(fd.get("waterTemp")),
     };
     // At least one surveyor must be filled; date/location/fixed are required.
     const anySurveyor = surveyors.chordates || surveyors.invertebrate || surveyors.substrate;
@@ -853,6 +856,8 @@ function renderInfo() {
     m.surveyors?.chordates || m.surveyors?.invertebrate || m.surveyors?.substrate || "";
   form.querySelector('[name="date"]').value = m.date || "";
   form.querySelector('[name="location"]').value = m.location || "";
+  form.querySelector('[name="waterTemp"]').value = m.waterTemp || "";
+  attachOneDecimalBlur(form.querySelector('[name="waterTemp"]'));
   // Location Within picker + Other text input
   const locWithin = attachLocationWithinPicker(form);
   if (locWithin) locWithin.setValueFromStored(m.locationWithin || "");
@@ -911,6 +916,10 @@ function renderInfo() {
     state.draft.metadata.location = (fd.get("location") || "").toString().trim();
     state.draft.metadata.locationWithin = locWithin ? locWithin.readValue() : "";
     state.draft.metadata.fixedTransect = fixed;
+    // Water Temp is stored as the typed string while the user edits; the
+    // blur handler attached above rounds to 1dp on focus loss, then persist
+    // runs and picks up the formatted value.
+    state.draft.metadata.waterTemp = (fd.get("waterTemp") || "").toString().trim();
     state.draft.metadata.depth = fixed === "no" ? "Random" : (fd.get("depth") || "").toString();
     saveDraft();
     flashSaved();
@@ -950,6 +959,11 @@ function renderInfo() {
     if (el) el.addEventListener("input", persist);
   });
   form.querySelector('[name="date"]').addEventListener("change", persist);
+  // Water Temperature — persist as the user types (no need to wait for blur),
+  // then the blur handler will rewrite the value to 1dp and persist will pick
+  // that up on the next event.
+  form.querySelector('[name="waterTemp"]').addEventListener("input", persist);
+  form.querySelector('[name="waterTemp"]').addEventListener("blur", persist);
   // Location Within select + Other free text both persist on change/input
   if (locWithin) {
     locWithin.select.addEventListener("change", persist);
@@ -1793,6 +1807,7 @@ function renderReview() {
     ["Location Within", meta.locationWithin],
     ["Fixed Transect", meta.fixedTransect ? capitalize(meta.fixedTransect) : "—"],
     ["Depth", meta.depth],
+    ["Water Temperature", meta.waterTemp ? `${meta.waterTemp} °C` : ""],
   ].forEach(([k, v]) => {
     const dt = document.createElement("dt"); dt.textContent = k;
     const dd = document.createElement("dd"); dd.textContent = v || "—";
@@ -1910,6 +1925,24 @@ function shortName(key) {
   return { chordates: "Chordates", invertebrate: "Invertebrates", substrate: "Substrate" }[key];
 }
 
+// Format a number-ish value to one decimal place ("6" → "6.0", "8.45" → "8.4"
+// because of JS float rounding, blank stays blank). Negatives clamp to 0.
+function formatOneDecimal(raw) {
+  const s = (raw == null ? "" : String(raw)).trim();
+  if (!s) return "";
+  const n = parseFloat(s);
+  if (isNaN(n)) return "";
+  return Math.max(0, n).toFixed(1);
+}
+// Attach formatOneDecimal to an input's blur event so the field auto-pads
+// to ".0" when the user leaves it.
+function attachOneDecimalBlur(input) {
+  input.addEventListener("blur", () => {
+    const formatted = formatOneDecimal(input.value);
+    if (formatted && formatted !== input.value) input.value = formatted;
+  });
+}
+
 function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
 function sectionHasData(survey, i) {
@@ -1992,6 +2025,7 @@ function baseMeta(draft, surveyKey) {
     locationWithin: m.locationWithin || "",
     fixedTransect: m.fixedTransect,
     depth: m.depth,
+    waterTemp: m.waterTemp || "",
     surveyId: draft.id,
     submittedAt: new Date().toISOString(),
   };
@@ -2057,7 +2091,7 @@ function buildAllPayload(draft) {
 // Schema describes tab layout (merged category band + column row).
 // All three surveys are long-format: meta + section, then the data columns.
 function buildSchema() {
-  const meta = ["surveyor", "date", "location", "locationWithin", "fixedTransect", "depth", "surveyId", "submittedAt", "section", "startTime", "startDepth", "notes"];
+  const meta = ["surveyor", "date", "location", "locationWithin", "fixedTransect", "depth", "waterTemp", "surveyId", "submittedAt", "section", "startTime", "startDepth", "notes"];
 
   function speciesSchema(list) {
     const groups = list.map((grp) => {
