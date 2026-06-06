@@ -34,7 +34,7 @@ const CHORDATES = [
   { category: null, species: ["Moray Eel"] },
   { category: "Parrotfish", species: ["Large (>20cm)", "Small (<20cm)"] },
   { category: null, species: ["Rabbitfish"] },
-  { category: "Reptile", species: ["Sea Snake/Turtle"] },
+  { category: "Reptile", species: ["Sea Snake", "Sea Turtle"] },
   { category: null, species: ["Snapper"] },
   { category: null, species: ["Surgeonfish"] },
   { category: "Sweetlips", species: ["Juvenile", "Adult"] },
@@ -171,6 +171,12 @@ const LS_CUSTOM_SITES = "ems:customDiveSites";
 // override it in Settings (⚙). If you clear the field there, sync turns off.
 const DEFAULT_SYNC_URL = "https://script.google.com/macros/s/AKfycbxls2SjgPyuMLWxuAiF-AUkusoW2DTZvy1kqOLcEtIWw0ZpYmkUNTK8R61Lmd_D0XS6rw/exec";
 
+// Second Apps Script endpoint — drops rows into the analytical "Chordates/
+// Invertebrates/Substrate Survey CD" tabs in long-format. Filled in after the
+// user deploys apps-script-second.gs in the second Sheet.
+//   Sheet ID: 1qoVjcIp2Tne1G2rMxgl6Vm95LPCHmAxvVWRVSHboutw
+const DEFAULT_SECOND_SYNC_URL = ""; // ← paste the /exec URL after deploy
+
 // Shared secret token sent in every submission payload. The Apps Script
 // checks this value at the top of doPost and rejects requests without a
 // match. Stops drive-by scrapers and bots. Not strong security — the token
@@ -305,6 +311,13 @@ function loadDraft() {
       d.chordates["Ray"] = d.chordates["Ray"] || d.chordates["Shark/Ray"].slice();
       delete d.chordates["Shark/Ray"];
     }
+    // Same treatment for the old "Sea Snake/Turtle" combined entry → "Sea Snake"
+    // and "Sea Turtle". Historic counts go to BOTH; surveyor refines per-species.
+    if (d.chordates && d.chordates["Sea Snake/Turtle"]) {
+      d.chordates["Sea Snake"] = d.chordates["Sea Snake"] || d.chordates["Sea Snake/Turtle"].slice();
+      d.chordates["Sea Turtle"] = d.chordates["Sea Turtle"] || d.chordates["Sea Snake/Turtle"].slice();
+      delete d.chordates["Sea Snake/Turtle"];
+    }
     // Ensure every species in the current schema has an array on the draft —
     // schemas change (additions / renames) and we don't want runtime undefined
     // errors when rendering an older draft against a newer schema.
@@ -391,7 +404,7 @@ function loadSettings() {
   // Default to the baked-in team endpoint so new devices work without any
   // manual setup. Existing saved settings override (user values win, even if
   // they explicitly cleared the URL to disable sync).
-  const defaults = { syncUrl: DEFAULT_SYNC_URL, autoSync: true };
+  const defaults = { syncUrl: DEFAULT_SYNC_URL, secondSyncUrl: DEFAULT_SECOND_SYNC_URL, autoSync: true };
   const raw = localStorage.getItem(LS_SETTINGS);
   if (!raw) return defaults;
   try { return { ...defaults, ...JSON.parse(raw) }; }
@@ -2064,7 +2077,29 @@ function substrateRow(draft, sectionIdx) {
   return row;
 }
 
+// Cumulative section-completion flags for each survey type — included in every
+// payload so the second Apps Script knows whether segments not in *this*
+// submission should land as `0` (section was completed) or `NA` (not yet done).
+//
+// Species: surveyor-marked completion flag.
+// Substrate: derived completion — section is "complete" only when all 40
+//   points are filled, which is the gate the app already enforces.
+function buildSectionsCompleted(draft) {
+  return {
+    chordates: (draft.sectionComplete?.chordates || [false, false, false, false]).slice(),
+    invertebrate: (draft.sectionComplete?.invertebrate || [false, false, false, false]).slice(),
+    substrate: SECTIONS.map((_, i) => {
+      const arr = draft.substrate[i] || [];
+      if (arr.length < POINTS_PER_SECTION) return false;
+      for (let j = 0; j < POINTS_PER_SECTION; j++) if (arr[j] == null) return false;
+      return true;
+    }),
+  };
+}
+
 // Build a payload with whichever sections you ask for, for one survey only.
+// sectionIdxs also rides as `_sectionIdxs` so the second Apps Script can tell
+// which segments belong to *this* submission vs other completed-but-not-resent.
 function buildSurveyPayload(draft, surveyKey, sectionIdxs) {
   const list = surveyKey === "chordates" ? CHORDATES : surveyKey === "invertebrate" ? INVERTEBRATES : null;
   const rows = sectionIdxs.map((i) =>
@@ -2075,6 +2110,8 @@ function buildSurveyPayload(draft, surveyKey, sectionIdxs) {
   return {
     [surveyKey]: rows,
     schema: { [surveyKey]: schema[surveyKey] },
+    sectionsCompleted: buildSectionsCompleted(draft),
+    submittedSections: { [surveyKey]: sectionIdxs.slice() },
   };
 }
 
@@ -2085,6 +2122,12 @@ function buildAllPayload(draft) {
     invertebrate: sectionIdxs.map((i) => speciesRow(draft, INVERTEBRATES, "invertebrate", i)),
     substrate: sectionIdxs.map((i) => substrateRow(draft, i)),
     schema: buildSchema(),
+    sectionsCompleted: buildSectionsCompleted(draft),
+    submittedSections: {
+      chordates: sectionIdxs.slice(),
+      invertebrate: sectionIdxs.slice(),
+      substrate: sectionIdxs.slice(),
+    },
   };
 }
 
@@ -2292,23 +2335,43 @@ function stampForFilename() {
   return `${date}-${loc}`;
 }
 
+// Send the same payload to one Apps Script endpoint and return ok/err. Apps
+// Script web apps reject CORS preflight so the body is text/plain with the
+// shared secret carried in the JSON (avoids the URL/headers).
+async function postToEndpoint(url, payload) {
+  const body = { ...payload, secret: SYNC_SECRET };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json().catch(() => ({}));
+  if (data && data.ok === false) throw new Error(data.error || "Apps Script error");
+}
+
 async function flushQueue() {
   if (!state.settings.syncUrl) return;
   if (!navigator.onLine) throw new Error("Offline");
   while (state.queue.length > 0) {
     const item = state.queue[0];
-    // Apps Script web apps reject preflight (no custom headers) — use text/plain.
-    // The shared secret rides inside the JSON body so it's never in a URL or
-    // header (where it'd be more likely to leak via logs / referrers).
-    const body = { ...item.payload, secret: SYNC_SECRET };
-    const res = await fetch(state.settings.syncUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json().catch(() => ({}));
-    if (data && data.ok === false) throw new Error(data.error || "Apps Script error");
+    // Fan out to BOTH the master and (if configured) the second analytical
+    // endpoint. Item carries per-endpoint sent flags so a retry only re-sends
+    // to whichever endpoints haven't yet succeeded.
+    item.sent = item.sent || {};
+
+    if (!item.sent.master) {
+      await postToEndpoint(state.settings.syncUrl, item.payload);
+      item.sent.master = true;
+      saveQueue();
+    }
+    if (state.settings.secondSyncUrl && !item.sent.second) {
+      await postToEndpoint(state.settings.secondSyncUrl, item.payload);
+      item.sent.second = true;
+      saveQueue();
+    }
+
+    // Both endpoints (or just the configured ones) succeeded → drop the item.
     state.queue.shift();
     saveQueue();
     updateQueuePill();
