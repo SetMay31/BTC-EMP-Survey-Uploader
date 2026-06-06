@@ -175,7 +175,7 @@ const DEFAULT_SYNC_URL = "https://script.google.com/macros/s/AKfycbxls2SjgPyuMLW
 // Invertebrates/Substrate Survey CD" tabs in long-format. Filled in after the
 // user deploys apps-script-second.gs in the second Sheet.
 //   Sheet ID: 1qoVjcIp2Tne1G2rMxgl6Vm95LPCHmAxvVWRVSHboutw
-const DEFAULT_SECOND_SYNC_URL = ""; // ← paste the /exec URL after deploy
+const DEFAULT_SECOND_SYNC_URL = "https://script.google.com/macros/s/AKfycbyT6QnXqxdaFQwqrAwOtQ8t2p35i16qzu_3xyKACtgA3r9oM3HBHNlUcgXwXaVy0Ej3/exec";
 
 // Shared secret token sent in every submission payload. The Apps Script
 // checks this value at the top of doPost and rejects requests without a
